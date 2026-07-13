@@ -12,7 +12,7 @@ def main() -> None:
     print("Loading Whisper model...")
 
     model = WhisperModel(
-        "small",
+        "base",
         device="cpu",
         compute_type="int8",
     )
