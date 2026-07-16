@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -24,6 +25,7 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
 
 _model: WhisperModel | None = None
+_model_lock = threading.Lock()
 
 
 def get_model() -> tuple[WhisperModel, float]:
@@ -32,9 +34,15 @@ def get_model() -> tuple[WhisperModel, float]:
     if _model is not None:
         return _model, 0.0
 
-    start = time.perf_counter()
-    _model = WhisperModel(MODEL_NAME, device=DEVICE, compute_type=COMPUTE_TYPE)
-    return _model, time.perf_counter() - start
+    # Flask can serve multiple uploads at once. Without this lock, concurrent
+    # first requests can each allocate and load a separate Whisper model.
+    with _model_lock:
+        if _model is not None:
+            return _model, 0.0
+
+        start = time.perf_counter()
+        _model = WhisperModel(MODEL_NAME, device=DEVICE, compute_type=COMPUTE_TYPE)
+        return _model, time.perf_counter() - start
 
 
 def audio_duration_seconds(path: Path) -> float:
